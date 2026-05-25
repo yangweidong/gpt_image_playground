@@ -215,7 +215,7 @@ docker run -d -p 8080:80 \
   ghcr.io/cooksleep/gpt_image_playground:latest
 ```
 
-**隐藏真实 API 地址示例（普通 OpenAI 兼容接口）：**
+**隐藏真实 API 地址示例（OpenAI 兼容接口）：**
 
 ```bash
 docker run -d -p 8080:80 \
@@ -228,7 +228,7 @@ docker run -d -p 8080:80 \
 
 > 上例中设置页的 API URL 为空，实际请求通过代理转发到 `API_PROXY_URL`。
 
-**隐藏真实 API 地址 + 导入同步自定义服务商配置示例：**
+**隐藏真实 API 地址示例（同步自定义服务商配置）：**
 
 ```bash
 docker run -d -p 8080:80 \
