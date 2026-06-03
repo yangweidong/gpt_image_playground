@@ -787,7 +787,10 @@ export default function InputBar() {
   const isFalProvider = activeProvider === 'fal'
   const agentAutoImageCount = appMode === 'agent' && activeProfile.provider === 'openai' && activeProfile.apiMode === 'responses'
   const moderationDisabled = isFalProvider
-  const compressionDisabled = params.output_format === 'png' || isFalProvider
+  const transparentOutputAvailable = appMode === 'gallery' && activeProvider === 'openai'
+  const transparentOutputEnabled = transparentOutputAvailable && params.transparent_output
+  const compressionDisabled = transparentOutputEnabled || params.output_format === 'png' || isFalProvider
+  const formatDisabled = transparentOutputEnabled
   const outputImageLimit = getOutputImageLimitForSettings(effectiveSettings)
   const isFalTextToImage = isFalProvider && inputImages.length === 0
   const nDraftValue = Number(nInput)
@@ -817,6 +820,7 @@ export default function InputBar() {
   const atImageLimit = inputImages.length >= API_MAX_IMAGES
   const uploadImageTooltipText = atImageLimit ? `参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加` : '上传图片'
   const compressionHint = useHintTooltip({ enabled: () => compressionDisabled })
+  const transparentHint = useHintTooltip({ enabled: () => !transparentOutputAvailable })
   const moderationHint = useHintTooltip({ enabled: () => moderationDisabled })
   const sizeHint = useHintTooltip({ enabled: () => isFalTextToImage })
   const qualityHint = useHintTooltip({ enabled: () => settings.codexCli || isFalProvider })
@@ -1974,14 +1978,51 @@ export default function InputBar() {
       <label className="flex flex-col gap-0.5">
         <span className="text-gray-400 dark:text-gray-500 ml-1">格式</span>
         <Select
-          value={params.output_format}
-          onChange={(val) => setParams({ output_format: val as any })}
+          value={transparentOutputEnabled ? 'png' : params.output_format}
+          onChange={(val) => {
+            if (!formatDisabled) setParams({ output_format: val as any })
+          }}
           options={[
             { label: 'PNG', value: 'png' },
             { label: 'JPEG', value: 'jpeg' },
             { label: 'WebP', value: 'webp' },
           ]}
-          className={selectClass}
+          disabled={formatDisabled}
+          className={formatDisabled
+            ? 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed text-xs transition-all duration-200 shadow-sm'
+            : selectClass}
+        />
+      </label>
+      <label
+        className="relative flex flex-col gap-0.5"
+        onMouseEnter={transparentHint.show}
+        onMouseLeave={transparentHint.hide}
+        onTouchStart={transparentHint.startTouch}
+        onTouchEnd={transparentHint.clearTimer}
+        onTouchCancel={transparentHint.hide}
+        onClick={transparentHint.show}
+      >
+        <span className="text-gray-400 dark:text-gray-500 ml-1">透明PNG</span>
+        <Select
+          value={transparentOutputEnabled ? 'on' : 'off'}
+          onChange={(val) => {
+            if (!transparentOutputAvailable) return
+            setParams(val === 'on'
+              ? { transparent_output: true, output_format: 'png', output_compression: null }
+              : { transparent_output: false })
+          }}
+          options={[
+            { label: '关闭', value: 'off' },
+            { label: '开启', value: 'on' },
+          ]}
+          disabled={!transparentOutputAvailable}
+          className={!transparentOutputAvailable
+            ? 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed text-xs transition-all duration-200 shadow-sm'
+            : selectClass}
+        />
+        <ButtonTooltip
+          visible={!transparentOutputAvailable && transparentHint.visible}
+          text="透明 PNG 仅支持普通生图模式的 OpenAI 兼容接口"
         />
       </label>
       <label
@@ -2011,7 +2052,7 @@ export default function InputBar() {
         />
         <ButtonTooltip
           visible={compressionHint.visible}
-          text={isFalProvider ? 'fal.ai 不支持压缩率参数' : '仅 JPEG 和 WebP 支持压缩率'}
+          text={transparentOutputEnabled ? '透明 PNG 会强制使用 PNG 输出' : isFalProvider ? 'fal.ai 不支持压缩率参数' : '仅 JPEG 和 WebP 支持压缩率'}
         />
       </label>
       <label
@@ -2404,7 +2445,7 @@ export default function InputBar() {
           <div className="mt-3">
             {/* 桌面端布局 */}
             <div className="hidden sm:flex items-end justify-between gap-3">
-              {renderParams('grid-cols-6')}
+              {renderParams('grid-cols-7')}
 
               <div className="flex gap-2 flex-shrink-0 mb-0.5">
                 <div

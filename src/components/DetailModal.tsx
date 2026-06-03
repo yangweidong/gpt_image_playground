@@ -868,6 +868,16 @@ export default function DetailModal() {
                 <br />
                 <DetailParamValue task={task} paramKey="output_format" className="font-medium" actualParams={currentActualParams} />
               </div>
+              {(task.transparentOutput || task.params.transparent_output) && (
+                <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
+                  <span className="text-gray-400 dark:text-gray-500">透明 PNG</span>
+                  <br />
+                  <span className="font-medium text-gray-700 dark:text-gray-300">已开启</span>
+                  {task.transparentKeyColor && (
+                    <span className="ml-1 text-gray-400 dark:text-gray-500">({task.transparentKeyColor})</span>
+                  )}
+                </div>
+              )}
               <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
                 <span className="text-gray-400 dark:text-gray-500">审核</span>
                 <br />

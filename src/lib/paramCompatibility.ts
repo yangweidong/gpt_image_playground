@@ -27,10 +27,19 @@ export function normalizeParamsForSettings(
     nextParams.quality = DEFAULT_PARAMS.quality
   }
 
+  if (activeProfile.provider !== 'openai') {
+    nextParams.transparent_output = DEFAULT_PARAMS.transparent_output
+  }
+
   if (activeProfile.provider === 'fal') {
     if (!options.hasInputImages && nextParams.size === 'auto') nextParams.size = DEFAULT_FAL_IMAGE_SIZE
     if (nextParams.quality === 'auto') nextParams.quality = 'high'
     nextParams.moderation = DEFAULT_PARAMS.moderation
+    nextParams.output_compression = DEFAULT_PARAMS.output_compression
+  }
+
+  if (nextParams.transparent_output) {
+    nextParams.output_format = 'png'
     nextParams.output_compression = DEFAULT_PARAMS.output_compression
   }
 

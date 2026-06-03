@@ -75,6 +75,22 @@ vi.mock('./lib/api', () => ({
     revisedPrompts: [],
   })),
 }))
+vi.mock('./lib/transparentImage', () => ({
+  GREEN_KEY_COLOR: '#00FF00',
+  MAGENTA_KEY_COLOR: '#FF00FF',
+  createTransparentOutputMeta: vi.fn((prompt: string) => ({
+    transparentOutput: true,
+    transparentKeyColor: '#00FF00',
+    effectivePrompt: `transparent:${prompt}`,
+  })),
+  getTransparentRequestParams: vi.fn((params: typeof DEFAULT_PARAMS) => ({
+    ...params,
+    output_format: 'png',
+    output_compression: null,
+    transparent_output: true,
+  })),
+  removeKeyedBackgroundFromDataUrl: vi.fn(async (dataUrl: string, keyColor: string) => `transparent:${keyColor}:${dataUrl}`),
+}))
 vi.mock('./lib/agentApi', () => ({
   callAgentConversationTitleApi: vi.fn(async () => '标题'),
   callAgentResponsesApi: vi.fn(() => new Promise(() => {})),
@@ -95,8 +111,9 @@ vi.mock('./lib/agentApi', () => ({
     }
   }),
 }))
-import { clearAgentConversations, clearImages, clearTasks, getAllAgentConversations, getAllTasks, putAgentConversation, putImage, putTask as putDbTask } from './lib/db'
+import { clearAgentConversations, clearImages, clearTasks, getAllAgentConversations, getAllTasks, getImage, putAgentConversation, putImage, putTask as putDbTask } from './lib/db'
 import { callAgentResponsesApi, callBatchImageSingle } from './lib/agentApi'
+import { removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
 import { cleanStaleAgentInputDrafts, deleteAgentRoundFromConversation, deleteFavoriteCollection, editOutputs, getActiveAgentRounds, getErrorToastMessage, getPersistedState, getTaskApiProfile, importData, initStore, markInterruptedOpenAIRunningTasks, migratePersistedState, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeTask, reuseConfig, submitAgentMessage, submitTask, useStore } from './store'
 
 const imageA = { id: 'image-a', dataUrl: 'data:image/png;base64,a' }
@@ -259,6 +276,52 @@ describe('mask draft lifecycle in store actions', () => {
     const state = useStore.getState()
     expect(state.tasks).toHaveLength(1)
     expect(state.showToast).toHaveBeenCalledWith('任务已提交', 'success')
+  })
+
+  it('stores transparent PNG output after local post-processing', async () => {
+    const { callImageApi } = await import('./lib/api')
+    vi.mocked(callImageApi).mockResolvedValueOnce({
+      images: ['data:image/png;base64,generated'],
+      actualParams: { output_format: 'png' },
+      actualParamsList: [{ output_format: 'png' }],
+      revisedPrompts: [],
+    })
+    useStore.setState({
+      prompt: '红色贴纸',
+      params: {
+        ...DEFAULT_PARAMS,
+        output_format: 'jpeg',
+        output_compression: 80,
+        transparent_output: true,
+      },
+    })
+
+    await submitTask()
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    expect(callImageApi).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'transparent:红色贴纸',
+      params: expect.objectContaining({
+        output_format: 'png',
+        output_compression: null,
+        transparent_output: true,
+      }),
+    }))
+    expect(removeKeyedBackgroundFromDataUrl).toHaveBeenCalledWith('data:image/png;base64,generated', '#00FF00')
+    const [task] = useStore.getState().tasks
+    expect(task).toMatchObject({
+      prompt: '红色贴纸',
+      transparentOutput: true,
+      transparentKeyColor: '#00FF00',
+      transparentPrompt: 'transparent:红色贴纸',
+      status: 'done',
+    })
+    const outputImage = await getImage(task.outputImages[0])
+    expect(outputImage?.dataUrl).toBe('transparent:#00FF00:data:image/png;base64,generated')
+    await clearTasks()
+    await clearImages()
   })
 
   it('preserves selected image mentions when replacing a mask target with an equivalent image id', () => {
